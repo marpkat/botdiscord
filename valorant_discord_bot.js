@@ -121,7 +121,7 @@ async function checkForNewNews() {
 }
 
 // Função para enviar uma mensagem a cada 5 minutos para manter o bot ativo
-const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000; // 5 minutos em milissegundos
+const KEEP_ALIVE_INTERVAL = 60 * 60 * 1000; // 5 minutos em milissegundos
 
 async function sendKeepAliveMessage() {
   const channel = client.channels.cache.get(CHANNEL_ID);
