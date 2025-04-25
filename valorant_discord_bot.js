@@ -3,9 +3,10 @@ const fetch = require('node-fetch');
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
+const express = require('express'); // Novo: para criar um servidor HTTP
 
 // Configurações
-const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"]; // Regiões ajustadas
+const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
 const API_BASE_URL = 'https://playvalorant.com/_next/data/UeyB4Rt7MNOkxHRINkUVu';
 const CHECK_INTERVAL = 60 * 1000; // 1 minuto em milissegundos
 const STATE_FILE = path.join(__dirname, 'news_state.json');
@@ -13,6 +14,18 @@ const STATE_FILE = path.join(__dirname, 'news_state.json');
 // Configurações do Discord
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
+
+// Configurações do Express
+const app = express();
+const PORT = process.env.PORT || 3000; // Usa a porta do Render ou 3000 localmente
+
+// Inicia o servidor HTTP
+app.get('/', (req, res) => {
+  res.send('Bot do Valorant está rodando!');
+});
+app.listen(PORT, () => {
+  console.log(`Servidor HTTP rodando na porta ${PORT}`);
+});
 
 // Inicializa o cliente do Discord
 const client = new Client({
@@ -42,14 +55,14 @@ async function saveState(state) {
 async function fetchNews(region, retries = 3, delay = 1000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      if (!fetch) throw new Error('Fetch não está definido');
       const response = await fetch(`${API_BASE_URL}/${region}/news.json`, {
         headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
       });
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       const data = await response.json();
-      console.log(`Recebidos ${data.pageProps.posts?.length || 0} posts para ${region}`);
-      return data.pageProps.posts || [];
+      const posts = data.pageProps.posts || [];
+      console.log(`Recebidos ${posts.length} posts para ${region}`);
+      return posts;
     } catch (error) {
       console.error(`Tentativa ${attempt} falhou para ${region}: ${error.message}`);
       if (attempt === retries) {
@@ -81,13 +94,11 @@ async function checkForNewNews() {
       const contentId = post.analysis?.contentId;
       if (!contentId) continue;
 
-      // Verifica se a notícia já foi vista
       if (!state[region].includes(contentId)) {
-        // Cria um embed para a notificação
         const embed = new EmbedBuilder()
           .setTitle(`Nova Notícia em ${region.toUpperCase()}: ${post.title}`)
           .setDescription(post.description?.body || 'Sem descrição.')
-          .setColor('#FF4655') // Cor temática do Valorant
+          .setColor('#FF4655')
           .setTimestamp(new Date(post.publishedAt))
           .setThumbnail(post.media?.url || null);
 
@@ -96,7 +107,6 @@ async function checkForNewNews() {
           embed.setURL(url).addFields({ name: 'Link', value: `[Clique aqui](${url})` });
         }
 
-        // Envia a notificação ao canal
         await channel.send({ embeds: [embed] });
         console.log(`Nova notícia em ${region}: ${post.title} (${post.publishedAt})`);
         state[region].push(contentId);
@@ -105,7 +115,6 @@ async function checkForNewNews() {
     }
   }
 
-  // Salva o estado apenas se houver alterações
   if (hasNewNews) {
     await saveState(state);
   }
@@ -114,7 +123,6 @@ async function checkForNewNews() {
 // Evento quando o bot está pronto
 client.once('ready', () => {
   console.log(`Bot conectado como ${client.user.tag}`);
-  // Inicia a verificação imediatamente e a cada 1 minuto
   checkForNewNews().catch(console.error);
   setInterval(checkForNewNews, CHECK_INTERVAL);
 });
