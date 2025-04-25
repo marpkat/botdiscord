@@ -120,11 +120,35 @@ async function checkForNewNews() {
   }
 }
 
+// Função para enviar uma mensagem a cada 5 minutos para manter o bot ativo
+const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000; // 5 minutos em milissegundos
+
+async function sendKeepAliveMessage() {
+  const channel = client.channels.cache.get(CHANNEL_ID);
+  if (!channel) {
+    console.error('Canal não encontrado para mensagem keep-alive!');
+    return;
+  }
+
+  try {
+    await channel.send('✅ O bot está ativo!');
+    console.log('Mensagem keep-alive enviada.');
+  } catch (error) {
+    console.error('Erro ao enviar mensagem keep-alive:', error.message);
+  }
+}
+
+// Intervalo de 5 minutos para manter o bot ativo
+setInterval(sendKeepAliveMessage, KEEP_ALIVE_INTERVAL);
+
 // Evento quando o bot está pronto
 client.once('ready', () => {
   console.log(`Bot conectado como ${client.user.tag}`);
   checkForNewNews().catch(console.error);
   setInterval(checkForNewNews, CHECK_INTERVAL);
+
+  // Envia mensagem keep-alive para manter o bot ativo
+  sendKeepAliveMessage().catch(console.error);
 });
 
 // Conecta o bot ao Discord
