@@ -91,8 +91,8 @@ async function checkForNewNews() {
     if (!state[region]) state[region] = [];
 
     for (const post of posts) {
-      const contentId = post.analysis?.contentId;
-      if (!contentId) continue;
+      const contentId = post.analysis?.contentId || post.title + post.publishedAt || post.action?.payload?.url;
+if (!contentId) continue;;
 
       if (!state[region].includes(contentId)) {
         const embed = new EmbedBuilder()
