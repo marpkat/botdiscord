@@ -6,7 +6,7 @@ const path = require('path');
 const express = require('express'); // Novo: para criar um servidor HTTP
 
 // Configurações
-const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
+const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
 const API_BASE_URL = 'https://playvalorant.com/_next/data/UeyB4Rt7MNOkxHRINkUVu';
 const CHECK_INTERVAL = 120 * 1000; // 1 minuto em milissegundos
 const STATE_FILE = path.join(__dirname, 'news_state.json');
