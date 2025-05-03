@@ -70,7 +70,7 @@ async function loadState() {
       repo: GITHUB_REPO,
       path: GITHUB_PATH,
     });
-    console.log('Estado carregado do GitHub:', data.content);
+    console.log('Estado carregado do GitHub com sucesso');
     return JSON.parse(Buffer.from(data.content, 'base64').toString());
   } catch (error) {
     console.error('Erro ao carregar estado do GitHub:', error.message);
@@ -86,17 +86,18 @@ async function saveState(state) {
       repo: GITHUB_REPO,
       path: GITHUB_PATH,
     });
+    console.log('Arquivo news_state.json encontrado no GitHub, atualizando...');
     await octokit.repos.createOrUpdateFileContents({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
       path: GITHUB_PATH,
       message: 'Atualiza estado do bot',
-      content: Buffer.from(JSON.stringify(state)).toString('base64'),
+      content: Buffer.from(JSON.stringify(state, null, 2)).toString('base64'),
       sha: data.sha,
     });
-    console.log('Estado salvo no GitHub');
+    console.log('Estado salvo no GitHub com sucesso');
   } catch (error) {
-    console.error('Erro ao salvar estado no GitHub:', error.message);
+    console.error('Erro ao salvar estado no GitHub:', error.message, error.response?.data);
   }
 }
 
@@ -131,12 +132,12 @@ async function fetchNews(region, retries = 3, delay = 1000) {
         return []; // Retorna vazio para evitar falhas em regiões inválidas
       }
       const data = await response.json();
-      console.log(`Dados brutos para ${region}:`, JSON.stringify(data, null, 2));
+      console.log(`Dados recebidos para ${region} com sucesso`);
       // Ajustar a lógica para extrair os posts
       const blades = data.pageProps?.blades || [];
       console.log(`Blades encontrados para ${region}: ${blades.length}`);
       const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
-      console.log(`ArticleGrid encontrado para ${region}:`, JSON.stringify(articleGrid, null, 2));
+      console.log(`ArticleGrid encontrado para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
       const posts = articleGrid.items || [];
       console.log(`Posts filtrados para ${region}: ${posts.length}`);
       return posts;
@@ -216,6 +217,7 @@ async function checkForNewNews() {
   }
 
   if (hasNewNews) {
+    console.log('Novas notícias detectadas, salvando estado...');
     await saveState(state);
     console.log('Estado atualizado com novas notícias');
   } else {
