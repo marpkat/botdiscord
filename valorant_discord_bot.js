@@ -1,19 +1,23 @@
 require('dotenv').config();
 const fetch = require('node-fetch');
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const fs = require('fs').promises;
-const path = require('path');
+const redis = require('redis');
 const express = require('express');
 
 // Configurações
 const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
 const API_BASE_URL = 'https://playvalorant.com/_next/data/UeyB4Rt7MNOkxHRINkUVu';
-const CHECK_INTERVAL = 3 * 60 * 1000; // 5 minutos em milissegundos (ajustado para evitar rate limits)
-const STATE_FILE = path.join(__dirname, 'news_state.json');
-
-// Configurações do Discord
+const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos (ajustado para evitar rate limits)
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
+
+// Configurações do Redis (Render Key Value)
+const REDIS_URL = process.env.REDIS_URL || 'redis://red-d0b2j7muk2gs73casfag:6379'; // Usa variável de ambiente ou URL fornecida
+const redisClient = redis.createClient({ url: REDIS_URL });
+
+// Conectar ao Redis
+redisClient.on('error', (err) => console.error('Erro no Redis:', err));
+redisClient.connect().catch((err) => console.error('Erro ao conectar ao Redis:', err));
 
 // Configurações do Express
 const app = express();
@@ -36,19 +40,26 @@ const client = new Client({
   ],
 });
 
-// Função para carregar o estado salvo
+// Função para carregar o estado do Redis
 async function loadState() {
   try {
-    const data = await fs.readFile(STATE_FILE, 'utf8');
-    return JSON.parse(data);
+    const data = await redisClient.get('news_state');
+    console.log('Estado carregado do Redis:', data || '{}');
+    return data ? JSON.parse(data) : {};
   } catch (error) {
+    console.error('Erro ao carregar estado do Redis:', error.message);
     return {};
   }
 }
 
-// Função para salvar o estado
+// Função para salvar o estado no Redis
 async function saveState(state) {
-  await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+  try {
+    await redisClient.set('news_state', JSON.stringify(state));
+    console.log('Estado salvo no Redis');
+  } catch (error) {
+    console.error('Erro ao salvar estado no Redis:', error.message);
+  }
 }
 
 // Função para buscar notícias de uma região com retry
@@ -60,12 +71,10 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       });
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       const data = await response.json();
-
-      // Encontrar o objeto com type: "articleCardGrid" em blades
+      console.log(`Dados brutos para ${region}:`, JSON.stringify(data, null, 2));
       const articleGrid = (data.pageProps.blades || []).find(blade => blade.type === 'articleCardGrid');
       const posts = articleGrid ? articleGrid.items || [] : [];
-
-      console.log(`Recebidos ${posts.length} posts para ${region}`);
+      console.log(`Posts filtrados para ${region}: ${posts.length}`);
       return posts;
     } catch (error) {
       console.error(`Tentativa ${attempt} falhou para ${region}: ${error.message}`);
@@ -89,24 +98,30 @@ async function checkForNewNews() {
     console.error('Canal não encontrado! Verifique o CHANNEL_ID.');
     return;
   }
+  if (!channel.permissionsFor(client.user).has('SendMessages')) {
+    console.error('Bot não tem permissão para enviar mensagens no canal!');
+    return;
+  }
 
   for (const region of REGIONS) {
     const posts = await fetchNews(region);
     console.log(`Processando ${posts.length} posts para ${region}`);
     if (posts.length > 0) {
       console.log(`Primeiro post: ${JSON.stringify(posts[0], null, 2)}`);
+    } else {
+      console.log(`Nenhum post retornado para ${region}`);
     }
     if (!state[region]) state[region] = [];
 
     for (const post of posts) {
-      // Use analytics.contentId como identificador único
-      const contentId = post.analytics?.contentId;
+      const contentId = post.analytics?.contentId || `${post.title}-${post.publishedAt}`;
       if (!contentId) {
-        console.log(`Post sem contentId: ${post.title}`);
+        console.log(`Post sem identificador: ${post.title}`);
         continue;
       }
 
       if (!state[region].includes(contentId)) {
+        console.log(`Nova notícia detectada em ${region}: ${post.title} (${contentId})`);
         const embed = new EmbedBuilder()
           .setTitle(`Nova Notícia em ${region.toUpperCase()}: ${post.title}`)
           .setDescription(post.description?.body || 'Sem descrição.')
@@ -115,25 +130,32 @@ async function checkForNewNews() {
           .setThumbnail(post.media?.url || null);
 
         if (post.action?.payload?.url) {
-          // Ajuste para URLs externas (como YouTube) ou internas
           const url = post.action.payload.isExternal
             ? post.action.payload.url
             : `https://playvalorant.com${post.action.payload.url}`;
           embed.setURL(url).addFields({ name: 'Link', value: `[Clique aqui](${url})` });
         }
 
-        await channel.send({ embeds: [embed] });
-        console.log(`Nova notícia em ${region}: ${post.title} (${post.publishedAt})`);
-        state[region].push(contentId);
-        hasNewNews = true;
+        try {
+          await channel.send({ embeds: [embed] });
+          console.log(`Notificação enviada para ${post.title} em ${region}`);
+          state[region].push(contentId);
+          hasNewNews = true;
+        } catch (error) {
+          console.error(`Erro ao enviar notificação para ${post.title}:`, error.message);
+        }
       } else {
-        console.log(`Notícia já enviada em ${region}: ${post.title} (${contentId})`);
+        console.log(`Notícia já processada em ${region}: ${post.title} (${contentId})`);
       }
     }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   if (hasNewNews) {
     await saveState(state);
+    console.log('Estado atualizado com novas notícias');
+  } else {
+    console.log('Nenhuma nova notícia detectada.');
   }
 }
 
@@ -163,8 +185,6 @@ client.once('ready', () => {
   console.log(`Bot conectado como ${client.user.tag}`);
   checkForNewNews().catch(console.error);
   setInterval(checkForNewNews, CHECK_INTERVAL);
-
-  // Envia mensagem keep-alive para manter o bot ativo
   sendKeepAliveMessage().catch(console.error);
 });
 
@@ -176,4 +196,11 @@ client.login(DISCORD_TOKEN).catch((error) => {
 // Trata erros não capturados
 process.on('unhandledRejection', (error) => {
   console.error('Erro não tratado:', error);
+});
+
+// Encerrar conexão com Redis ao desligar o bot
+process.on('SIGTERM', async () => {
+  await redisClient.quit();
+  console.log('Conexão com Redis encerrada');
+  process.exit(0);
 });
