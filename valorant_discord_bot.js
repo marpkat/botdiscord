@@ -85,12 +85,14 @@ async function loadState() {
 // Função para salvar o estado no GitHub
 async function saveState(state) {
   try {
+    console.log('Tentando buscar o arquivo news_state.json no GitHub...');
     const { data } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
       path: GITHUB_PATH,
     });
     console.log('Arquivo news_state.json encontrado no GitHub, atualizando...');
+    console.log(`Estado a ser salvo: ${JSON.stringify(state, null, 2)}`);
     await octokit.repos.createOrUpdateFileContents({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
@@ -141,7 +143,6 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       }
       const data = await response.json();
       console.log(`Dados recebidos para ${region} com sucesso`);
-      // Log para depurar a estrutura
       console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
       console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
       const blades = data.pageProps?.blades || [];
@@ -219,6 +220,7 @@ async function checkForNewNews() {
           console.log(`Notificação enviada para ${post.title} em ${region}`);
           state[region].push(contentId);
           hasNewNews = true;
+          console.log(`hasNewNews definido como true após notificação de ${post.title}`);
         } catch (error) {
           console.error(`Erro ao enviar notificação para ${post.title} em ${region}:`, error.message);
         }
@@ -229,6 +231,7 @@ async function checkForNewNews() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
+  console.log(`hasNewNews final: ${hasNewNews}`);
   if (hasNewNews) {
     console.log('Novas notícias detectadas, salvando estado...');
     await saveState(state);
