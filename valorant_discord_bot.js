@@ -5,7 +5,7 @@ const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
-const REGIONS = ["ar-ae", "de-de", "en-us", "en-gb", "es-es", "es-mx", "fr-fr", "id-id", "it-it", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
+const REGIONS = ['en-us']; // Testar apenas com en-us para depuração
 const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -20,7 +20,7 @@ const GITHUB_PATH = 'news_state.json';
 
 // Configurações do Express
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 // Inicia o servidor HTTP
 app.get('/', (req, res) => {
@@ -45,8 +45,12 @@ let apiBuildId = null;
 // Função para obter o buildId dinamicamente
 async function getBuildId() {
   try {
-    const response = await fetch(`${BASE_URL}/pt-br/news/`, {
-      headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
+    const response = await fetch(`${BASE_URL}/en-us/news/`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
     });
     const text = await response.text();
     const match = text.match(/"buildId":"([^"]+)"/);
@@ -117,7 +121,11 @@ async function fetchNews(region, retries = 3, delay = 1000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, {
-        headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.5',
+        },
       });
       if (!response.ok) {
         console.log(`Resposta da API: ${response.status} ${response.statusText}`);
@@ -125,17 +133,22 @@ async function fetchNews(region, retries = 3, delay = 1000) {
           console.log('Erro 404 detectado, tentando atualizar buildId...');
           await getBuildId();
           if (apiBuildId) {
-            return await fetchNews(region, retries, delay); // Tenta novamente com novo buildId
+            return await fetchNews(region, retries, delay);
           }
         }
         console.warn(`Falha ao buscar notícias para ${region}: ${response.status}`);
-        return []; // Retorna vazio para evitar falhas em regiões inválidas
+        return [];
       }
       const data = await response.json();
       console.log(`Dados recebidos para ${region} com sucesso`);
-      // Ajustar a lógica para extrair os posts
+      // Log para depurar a estrutura
+      console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
+      console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
       const blades = data.pageProps?.blades || [];
       console.log(`Blades encontrados para ${region}: ${blades.length}`);
+      if (blades.length > 0) {
+        console.log(`Tipos de blades para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
+      }
       const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
       console.log(`ArticleGrid encontrado para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
       const posts = articleGrid.items || [];
@@ -195,7 +208,7 @@ async function checkForNewNews() {
           .setThumbnail(post.media?.url || null);
 
         if (post.action?.payload?.url) {
-          const url = post.action.payload.isExternal
+          const url = post.action.payload.url.startsWith('http')
             ? post.action.payload.url
             : `https://playvalorant.com${post.action.payload.url}`;
           embed.setURL(url).addFields({ name: 'Link', value: `[Clique aqui](${url})` });
