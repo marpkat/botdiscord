@@ -6,7 +6,7 @@ const express = require('express');
 
 // Configurações
 const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
-const API_BASE_URL = 'https://playvalorant.com/_next/data/UeyB4Rt7MNOkxHRINkUVu';
+const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
@@ -14,9 +14,9 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 // Configurações do GitHub
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-const GITHUB_OWNER = 'seu-usuario'; // Substitua por seu usuário do GitHub
-const GITHUB_REPO = 'seu-repositorio'; // Substitua pelo nome do repositório
-const GITHUB_PATH = 'news_state.json'; // Caminho do arquivo no repositório (ex.: 'src/news_state.json' se estiver em uma pasta)
+const GITHUB_OWNER = 'marp'; // Substitua por seu usuário
+const GITHUB_REPO = 'valorant-discord-bot'; // Substitua por seu repositório
+const GITHUB_PATH = 'news_state.json'; // Ajuste o caminho se necessário
 
 // Configurações do Express
 const app = express();
@@ -38,6 +38,29 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
   ],
 });
+
+// Variável para armazenar o buildId
+let apiBuildId = null;
+
+// Função para obter o buildId dinamicamente
+async function getBuildId() {
+  try {
+    const response = await fetch(`${BASE_URL}/pt-br/news/`, {
+      headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
+    });
+    const text = await response.text();
+    const match = text.match(/"buildId":"([^"]+)"/);
+    if (match && match[1]) {
+      apiBuildId = match[1];
+      console.log(`Novo buildId encontrado: ${apiBuildId}`);
+    } else {
+      throw new Error('buildId não encontrado na página');
+    }
+  } catch (error) {
+    console.error('Erro ao obter buildId:', error.message);
+    apiBuildId = null;
+  }
+}
 
 // Função para carregar o estado do GitHub
 async function loadState() {
@@ -79,12 +102,30 @@ async function saveState(state) {
 
 // Função para buscar notícias de uma região com retry
 async function fetchNews(region, retries = 3, delay = 1000) {
+  if (!apiBuildId) {
+    console.log('buildId não disponível, buscando...');
+    await getBuildId();
+  }
+  if (!apiBuildId) {
+    console.error('Não foi possível obter o buildId. Abortando busca de notícias.');
+    return [];
+  }
+  const API_BASE_URL = `${BASE_URL}/_next/data/${apiBuildId}`;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(`${API_BASE_URL}/${region}/news.json`, {
         headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
       });
-      if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 404 && attempt === 1) {
+          console.log('Erro 404 detectado, tentando atualizar buildId...');
+          await getBuildId();
+          if (apiBuildId) {
+            return await fetchNews(region, retries, delay); // Tenta novamente com novo buildId
+          }
+        }
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
       const data = await response.json();
       console.log(`Dados brutos para ${region}:`, JSON.stringify(data, null, 2));
       const articleGrid = (data.pageProps.blades || []).find(blade => blade.type === 'articleCardGrid');
@@ -196,10 +237,11 @@ async function sendKeepAliveMessage() {
 setInterval(sendKeepAliveMessage, KEEP_ALIVE_INTERVAL);
 
 // Evento quando o bot está pronto
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
   const channel = client.channels.cache.get(CHANNEL_ID);
   channel.send('Teste manual de notificação').catch(console.error); // Teste inicial
+  await getBuildId(); // Busca o buildId ao iniciar
   checkForNewNews().catch(console.error);
   setInterval(checkForNewNews, CHECK_INTERVAL);
   sendKeepAliveMessage().catch(console.error);
