@@ -5,7 +5,7 @@ const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
-const REGIONS = ["ar-ae", "de-de", "en-us", "en-gb"]; // Testar apenas com en-us para depuração
+const REGIONS = ["ar-ae", "de-de", "en-us", "en-gb"];
 const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -124,7 +124,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
   }
   const API_BASE_URL = `${BASE_URL}/_next/data/${apiBuildId}`;
   const url = `${API_BASE_URL}/${region}/news.json`;
-  console.log(`Tentando acessar URL: ${url}`);
+  console.log(`Buscando notícias para ${region}...`); // Log ajustado para não exibir a URL
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, {
@@ -140,7 +140,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
         },
       });
       if (!response.ok) {
-        console.log(`Resposta da API: ${response.status} ${response.statusText}`);
+        console.log(`Resposta da API para ${region}: ${response.status} ${response.statusText}`);
         if (response.status === 404 && attempt === 1) {
           console.log('Erro 404 detectado, tentando atualizar buildId...');
           await getBuildId();
