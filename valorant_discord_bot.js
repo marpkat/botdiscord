@@ -69,6 +69,7 @@ async function getBuildId() {
 // Função para carregar o estado do GitHub
 async function loadState() {
   try {
+    console.log('Tentando carregar estado do GitHub...');
     const { data } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
@@ -77,7 +78,7 @@ async function loadState() {
     console.log('Estado carregado do GitHub com sucesso');
     return JSON.parse(Buffer.from(data.content, 'base64').toString());
   } catch (error) {
-    console.error('Erro ao carregar estado do GitHub:', error.message);
+    console.error('Erro ao carregar estado do GitHub:', error.message, error.response?.data);
     return {};
   }
 }
@@ -145,14 +146,26 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       console.log(`Dados recebidos para ${region} com sucesso`);
       console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
       console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
-      const blades = data.pageProps?.blades || [];
-      console.log(`Blades encontrados para ${region}: ${blades.length}`);
-      if (blades.length > 0) {
-        console.log(`Tipos de blades para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
+      // Tentar encontrar os posts em diferentes chaves
+      let posts = [];
+      if (data.pageProps?.blades) {
+        const blades = data.pageProps.blades;
+        console.log(`Blades encontrados para ${region}: ${blades.length}`);
+        if (blades.length > 0) {
+          console.log(`Tipos de blades para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
+        }
+        const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
+        console.log(`ArticleGrid encontrado para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
+        posts = articleGrid.items || [];
+      } else if (data.pageProps?.articles) {
+        console.log(`Tentando extrair posts de pageProps.articles para ${region}`);
+        posts = data.pageProps.articles;
+      } else if (data.pageProps?.content) {
+        console.log(`Tentando extrair posts de pageProps.content para ${region}`);
+        posts = data.pageProps.content;
+      } else {
+        console.log(`Nenhuma chave com posts encontrada em pageProps para ${region}`);
       }
-      const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
-      console.log(`ArticleGrid encontrado para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
-      const posts = articleGrid.items || [];
       console.log(`Posts filtrados para ${region}: ${posts.length}`);
       return posts;
     } catch (error) {
