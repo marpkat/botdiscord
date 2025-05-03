@@ -4,7 +4,7 @@ import re
 from time import sleep
 
 # Configurações
-REGIONS = ["ar-ae", "de-de", "en-us", "en-gb", "es-es", "es-mx", "fr-fr", "id-id", "it-it", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
+REGIONS = ["ar-ae", "de-de", "en-us", "en-gb", "es-es", "es-mx", "fr-fr", "id-id", "it-it", "ja-jp", "ko-kr", "pl-pl", "pt-br", "ru-ru", "th-th", "tr-tr", "vi-vn", "zh-tw"]
 BASE_URL = "https://playvalorant.com"
 
 # Cabeçalhos para simular uma requisição de navegador
