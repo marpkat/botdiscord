@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fetch = require('node-fetch');
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const redis = require('redis');
+const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
@@ -10,15 +10,13 @@ const API_BASE_URL = 'https://playvalorant.com/_next/data/UeyB4Rt7MNOkxHRINkUVu'
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
-// Configurações do Redis (Render Key Value)
-const REDIS_URL = process.env.REDIS_URL || 'redis://red-d0b2j7muk2gs73casfag:6379';
-const redisClient = redis.createClient({ url: REDIS_URL });
-
-// Conectar ao Redis
-redisClient.on('ready', () => console.log('Conexão com Redis estabelecida'));
-redisClient.on('error', (err) => console.error('Erro no Redis:', err));
-redisClient.connect().catch((err) => console.error('Erro ao conectar ao Redis:', err));
+// Configurações do GitHub
+const octokit = new Octokit({ auth: GITHUB_TOKEN });
+const GITHUB_OWNER = 'seu-usuario'; // Substitua por seu usuário do GitHub
+const GITHUB_REPO = 'seu-repositorio'; // Substitua pelo nome do repositório
+const GITHUB_PATH = 'news_state.json'; // Caminho do arquivo no repositório (ex.: 'src/news_state.json' se estiver em uma pasta)
 
 // Configurações do Express
 const app = express();
@@ -41,25 +39,41 @@ const client = new Client({
   ],
 });
 
-// Função para carregar o estado do Redis
+// Função para carregar o estado do GitHub
 async function loadState() {
   try {
-    const data = await redisClient.get('news_state');
-    console.log('Estado carregado do Redis:', data || '{}');
-    return data ? JSON.parse(data) : {};
+    const { data } = await octokit.repos.getContent({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: GITHUB_PATH,
+    });
+    console.log('Estado carregado do GitHub:', data.content);
+    return JSON.parse(Buffer.from(data.content, 'base64').toString());
   } catch (error) {
-    console.error('Erro ao carregar estado do Redis:', error.message);
+    console.error('Erro ao carregar estado do GitHub:', error.message);
     return {};
   }
 }
 
-// Função para salvar o estado no Redis
+// Função para salvar o estado no GitHub
 async function saveState(state) {
   try {
-    await redisClient.set('news_state', JSON.stringify(state));
-    console.log('Estado salvo no Redis');
+    const { data } = await octokit.repos.getContent({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: GITHUB_PATH,
+    });
+    await octokit.repos.createOrUpdateFileContents({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: GITHUB_PATH,
+      message: 'Atualiza estado do bot',
+      content: Buffer.from(JSON.stringify(state)).toString('base64'),
+      sha: data.sha,
+    });
+    console.log('Estado salvo no GitHub');
   } catch (error) {
-    console.error('Erro ao salvar estado no Redis:', error.message);
+    console.error('Erro ao salvar estado no GitHub:', error.message);
   }
 }
 
@@ -199,11 +213,4 @@ client.login(DISCORD_TOKEN).catch((error) => {
 // Trata erros não capturados
 process.on('unhandledRejection', (error) => {
   console.error('Erro não tratado:', error);
-});
-
-// Encerrar conexão com Redis ao desligar o bot
-process.on('SIGTERM', async () => {
-  await redisClient.quit();
-  console.log('Conexão com Redis encerrada');
-  process.exit(0);
 });
