@@ -5,7 +5,7 @@ const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
-const REGIONS = ["ar-ae", "de-de"]; // Testar apenas com en-us para depuração
+const REGIONS = ["ar-ae", "de-de", "en-us", "en-gb"]; // Testar apenas com en-us para depuração
 const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
