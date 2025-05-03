@@ -5,7 +5,7 @@ const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
-const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
+const REGIONS = ["ar-ae", "de-de", "en-us", "en-gb", "es-es", "es-mx", "fr-fr", "id-id", "it-it", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
 const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
