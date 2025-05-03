@@ -124,7 +124,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
   }
   const API_BASE_URL = `${BASE_URL}/_next/data/${apiBuildId}`;
   const url = `${API_BASE_URL}/${region}/news.json`;
-  console.log(`Buscando notícias para ${region}...`); // Log ajustado para não exibir a URL
+  console.log(`Buscando notícias para ${region}...`);
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, {
@@ -155,12 +155,12 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       console.log(`Dados recebidos para ${region} com sucesso`);
       console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
       console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
-      // Log para depurar a estrutura completa de pageProps.page
+      // Log para depurar a estrutura de pageProps.page
       if (data.pageProps?.page) {
         console.log(`Chaves em pageProps.page para ${region}: ${Object.keys(data.pageProps.page)}`);
-        // Log adicional para verificar o conteúdo de pageProps.page.blades
+        // Verificar se blades existe, mas não exibir o conteúdo completo
         if (data.pageProps.page.blades) {
-          console.log(`Conteúdo de pageProps.page.blades para ${region}: ${JSON.stringify(data.pageProps.page.blades, null, 2)}`);
+          console.log(`Blades encontrados em pageProps.page para ${region}: ${data.pageProps.page.blades.length}`);
         } else {
           console.log(`pageProps.page.blades não encontrado para ${region}`);
         }
