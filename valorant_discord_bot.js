@@ -70,7 +70,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       const response = await fetch(`${API_BASE_URL}/${region}/news.json`, {
         headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
       });
-      if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+      if      if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       const data = await response.json();
       console.log(`Dados brutos para ${region}:`, JSON.stringify(data, null, 2));
       const articleGrid = (data.pageProps.blades || []).find(blade => blade.type === 'articleCardGrid');
