@@ -77,15 +77,14 @@ async function getBuildId() {
 // Função para carregar o estado do GitHub
 async function loadState() {
   try {
-    console.log('Tentando carregar estado do GitHub...');
+    console.log('Carregando estado do GitHub...');
     const { data } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
       path: GITHUB_PATH,
     });
-    console.log('Estado carregado do GitHub com sucesso');
     const state = JSON.parse(Buffer.from(data.content, 'base64').toString());
-    console.log('Estado carregado:', JSON.stringify(state, null, 2));
+    console.log('Estado carregado com sucesso.');
     return state;
   } catch (error) {
     console.error('Erro ao carregar estado do GitHub:', error.message, error.response?.data);
@@ -96,14 +95,12 @@ async function loadState() {
 // Função para salvar o estado no GitHub
 async function saveState(state) {
   try {
-    console.log('Tentando buscar o arquivo news_state.json no GitHub para atualizar...');
+    console.log('Salvando estado no GitHub...');
     const { data } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
       path: GITHUB_PATH,
     });
-    console.log('Arquivo news_state.json encontrado no GitHub, atualizando...');
-    console.log(`Estado a ser salvo: ${JSON.stringify(state, null, 2)}`);
     await octokit.repos.createOrUpdateFileContents({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
@@ -112,7 +109,7 @@ async function saveState(state) {
       content: Buffer.from(JSON.stringify(state, null, 2)).toString('base64'),
       sha: data.sha,
     });
-    console.log('Estado salvo no GitHub com sucesso');
+    console.log('Estado salvo com sucesso.');
   } catch (error) {
     console.error('Erro ao salvar estado no GitHub:', error.message, error.response?.data);
     throw new Error('Falha ao salvar o news_state.json. Verifique o GITHUB_TOKEN e o acesso ao repositório.');
@@ -147,7 +144,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
         },
       });
       if (!response.ok) {
-        console.log(`Resposta da API para ${region}: ${response.status} ${response.statusText}`);
+        console.log(`Falha na API para ${region}: ${response.status} ${response.statusText}`);
         if (response.status === 404 && attempt === 1) {
           console.log('Erro 404 detectado, tentando atualizar buildId...');
           await getBuildId();
@@ -159,48 +156,19 @@ async function fetchNews(region, retries = 3, delay = 1000) {
         return [];
       }
       const data = await response.json();
-      console.log(`Dados recebidos para ${region} com sucesso`);
-      console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
-      console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
-      if (data.pageProps?.page) {
-        console.log(`Chaves em pageProps.page para ${region}: ${Object.keys(data.pageProps.page)}`);
-        if (data.pageProps.page.blades) {
-          console.log(`Blades encontrados em pageProps.page para ${region}: ${data.pageProps.page.blades.length}`);
-        } else {
-          console.log(`pageProps.page.blades não encontrado para ${region}`);
-        }
-      } else {
-        console.log(`pageProps.page não encontrado para ${region}`);
-      }
       let posts = [];
       if (data.pageProps?.blades) {
-        const blades = data.pageProps.blades;
-        console.log(`Blades encontrados em pageProps para ${region}: ${blades.length}`);
-        if (blades.length > 0) {
-          console.log(`Tipos de blades em pageProps para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
-        }
-        const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
-        console.log(`ArticleGrid encontrado em pageProps para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
+        const articleGrid = data.pageProps.blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
         posts = articleGrid.items || [];
       } else if (data.pageProps?.articles) {
-        console.log(`Tentando extrair posts de pageProps.articles para ${region}`);
         posts = data.pageProps.articles;
       } else if (data.pageProps?.content) {
-        console.log(`Tentando extrair posts de pageProps.content para ${region}`);
         posts = data.pageProps.content;
       } else if (data.pageProps?.page?.blades) {
-        const blades = data.pageProps.page.blades;
-        console.log(`Blades encontrados em pageProps.page para ${region}: ${blades.length}`);
-        if (blades.length > 0) {
-          console.log(`Tipos de blades em pageProps.page para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
-        }
-        const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
-        console.log(`ArticleGrid encontrado em pageProps.page para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
+        const articleGrid = data.pageProps.page.blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
         posts = articleGrid.items || [];
-      } else {
-        console.log(`Nenhuma chave com posts encontrada em pageProps ou pageProps.page para ${region}`);
       }
-      console.log(`Posts filtrados para ${region}: ${posts.length}`);
+      console.log(`Encontrados ${posts.length} posts para ${region}.`);
       return posts;
     } catch (error) {
       console.error(`Tentativa ${attempt} falhou para ${region}: ${error.message}`);
@@ -216,7 +184,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
 // Função para verificar e notificar novas notícias
 async function checkForNewNews() {
   if (isCheckingNews) {
-    console.log('checkForNewNews já está em execução. Aguardando a próxima verificação...');
+    console.log('Verificação de notícias já em andamento. Aguardando próximo ciclo...');
     return;
   }
 
@@ -239,29 +207,20 @@ async function checkForNewNews() {
 
     for (const region of REGIONS) {
       const posts = await fetchNews(region);
-      console.log(`Processando ${posts.length} posts para ${region}`);
-      if (posts.length > 0) {
-        console.log(`Primeiro post para ${region}: ${JSON.stringify(posts[0], null, 2)}`);
-      } else {
-        console.log(`Nenhum post retornado para ${region}`);
-      }
       if (!state[region]) {
         console.log(`Nenhum estado existente para ${region}, inicializando...`);
         state[region] = [];
       }
 
       for (const post of posts) {
-        // Priorizar o contentId do analytics, se disponível
         let contentId = post.analytics?.contentId;
         if (!contentId) {
-          console.warn(`Post sem contentId em ${region}: ${post.title}. Usando fallback: ${post.title}-${post.publishedAt}`);
+          console.warn(`Post sem contentId em ${region}: ${post.title}. Usando fallback.`);
           contentId = `${post.title}-${post.publishedAt}`;
         }
-        console.log(`Verificando contentId para ${region}: ${contentId}`);
-        console.log(`Lista atual de contentIds em ${region}: ${state[region]}`);
 
         if (!state[region].includes(contentId)) {
-          console.log(`Nova notícia detectada em ${region}: ${post.title} (${contentId})`);
+          console.log(`Nova notícia detectada em ${region}: ${post.title}`);
           const embed = new EmbedBuilder()
             .setTitle(`Nova Notícia em ${region.toUpperCase()}: ${post.title}`)
             .setDescription(post.description?.body || 'Sem descrição.')
@@ -281,22 +240,18 @@ async function checkForNewNews() {
             console.log(`Notificação enviada para ${post.title} em ${region}`);
             state[region].push(contentId);
             hasNewNews = true;
-            console.log(`hasNewNews definido como true após notificação de ${post.title}`);
           } catch (error) {
             console.error(`Erro ao enviar notificação para ${post.title} em ${region}:`, error.message);
           }
-        } else {
-          console.log(`Notícia já processada em ${region}: ${post.title} (${contentId})`);
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    console.log(`hasNewNews final: ${hasNewNews}`);
     if (hasNewNews) {
       console.log('Novas notícias detectadas, salvando estado...');
       await saveState(state);
-      console.log('Estado atualizado com novas notícias');
+      console.log('Estado atualizado com novas notícias.');
     } else {
       console.log('Nenhuma nova notícia detectada.');
     }
@@ -334,12 +289,12 @@ client.once('ready', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
   const channel = client.channels.cache.get(CHANNEL_ID);
   if (channel) {
-    channel.send('Teste manual de notificação').catch(console.error); // Teste inicial
+    channel.send('Teste manual de notificação').catch(console.error);
   } else {
     console.error('Canal não encontrado ao iniciar o bot!');
   }
-  await getBuildId(); // Busca o buildId ao iniciar
-  await checkForNewNews(); // Executa a primeira verificação
+  await getBuildId();
+  await checkForNewNews();
   if (!intervalId) {
     intervalId = setInterval(checkForNewNews, CHECK_INTERVAL);
     console.log(`Intervalo de verificação configurado: ${CHECK_INTERVAL}ms`);
