@@ -7,15 +7,16 @@ const express = require('express');
 // Configurações
 const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
 const API_BASE_URL = 'https://playvalorant.com/_next/data/UeyB4Rt7MNOkxHRINkUVu';
-const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos (ajustado para evitar rate limits)
+const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
 
 // Configurações do Redis (Render Key Value)
-const REDIS_URL = process.env.REDIS_URL || 'redis://red-d0b2j7muk2gs73casfag:6379'; // Usa variável de ambiente ou URL fornecida
+const REDIS_URL = process.env.REDIS_URL || 'redis://red-d0b2j7muk2gs73casfag:6379';
 const redisClient = redis.createClient({ url: REDIS_URL });
 
 // Conectar ao Redis
+redisClient.on('ready', () => console.log('Conexão com Redis estabelecida'));
 redisClient.on('error', (err) => console.error('Erro no Redis:', err));
 redisClient.connect().catch((err) => console.error('Erro ao conectar ao Redis:', err));
 
@@ -160,7 +161,7 @@ async function checkForNewNews() {
 }
 
 // Função para enviar uma mensagem a cada 1 hora para manter o bot ativo
-const KEEP_ALIVE_INTERVAL = 60 * 60 * 1000; // 1 hora em milissegundos
+const KEEP_ALIVE_INTERVAL = 60 * 60 * 1000; // 1 hora
 
 async function sendKeepAliveMessage() {
   const channel = client.channels.cache.get(CHANNEL_ID);
@@ -183,6 +184,8 @@ setInterval(sendKeepAliveMessage, KEEP_ALIVE_INTERVAL);
 // Evento quando o bot está pronto
 client.once('ready', () => {
   console.log(`Bot conectado como ${client.user.tag}`);
+  const channel = client.channels.cache.get(CHANNEL_ID);
+  channel.send('Teste manual de notificação').catch(console.error); // Teste inicial
   checkForNewNews().catch(console.error);
   setInterval(checkForNewNews, CHECK_INTERVAL);
   sendKeepAliveMessage().catch(console.error);
