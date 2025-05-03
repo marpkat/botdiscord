@@ -50,6 +50,10 @@ async function getBuildId() {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': 'https://playvalorant.com/',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        'Upgrade-Insecure-Requests': '1',
       },
     });
     const text = await response.text();
@@ -128,6 +132,11 @@ async function fetchNews(region, retries = 3, delay = 1000) {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
           'Accept': 'application/json',
           'Accept-Language': 'en-US,en;q=0.5',
+          'Referer': 'https://playvalorant.com/en-us/news/',
+          'Connection': 'keep-alive',
+          'Cache-Control': 'no-cache',
+          'Upgrade-Insecure-Requests': '1',
+          'Accept-Encoding': 'gzip, deflate, br',
         },
       });
       if (!response.ok) {
@@ -146,16 +155,27 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       console.log(`Dados recebidos para ${region} com sucesso`);
       console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
       console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
-      // Tentar encontrar os posts em diferentes chaves
+      // Log para depurar a estrutura completa de pageProps.page
+      if (data.pageProps?.page) {
+        console.log(`Chaves em pageProps.page para ${region}: ${Object.keys(data.pageProps.page)}`);
+        // Log adicional para verificar o conteúdo de pageProps.page.blades
+        if (data.pageProps.page.blades) {
+          console.log(`Conteúdo de pageProps.page.blades para ${region}: ${JSON.stringify(data.pageProps.page.blades, null, 2)}`);
+        } else {
+          console.log(`pageProps.page.blades não encontrado para ${region}`);
+        }
+      } else {
+        console.log(`pageProps.page não encontrado para ${region}`);
+      }
       let posts = [];
       if (data.pageProps?.blades) {
         const blades = data.pageProps.blades;
-        console.log(`Blades encontrados para ${region}: ${blades.length}`);
+        console.log(`Blades encontrados em pageProps para ${region}: ${blades.length}`);
         if (blades.length > 0) {
-          console.log(`Tipos de blades para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
+          console.log(`Tipos de blades em pageProps para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
         }
         const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
-        console.log(`ArticleGrid encontrado para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
+        console.log(`ArticleGrid encontrado em pageProps para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
         posts = articleGrid.items || [];
       } else if (data.pageProps?.articles) {
         console.log(`Tentando extrair posts de pageProps.articles para ${region}`);
@@ -163,8 +183,17 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       } else if (data.pageProps?.content) {
         console.log(`Tentando extrair posts de pageProps.content para ${region}`);
         posts = data.pageProps.content;
+      } else if (data.pageProps?.page?.blades) {
+        const blades = data.pageProps.page.blades;
+        console.log(`Blades encontrados em pageProps.page para ${region}: ${blades.length}`);
+        if (blades.length > 0) {
+          console.log(`Tipos de blades em pageProps.page para ${region}: ${blades.map(blade => blade.type).join(', ')}`);
+        }
+        const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
+        console.log(`ArticleGrid encontrado em pageProps.page para ${region}: ${articleGrid.items ? articleGrid.items.length : 0} itens`);
+        posts = articleGrid.items || [];
       } else {
-        console.log(`Nenhuma chave com posts encontrada em pageProps para ${region}`);
+        console.log(`Nenhuma chave com posts encontrada em pageProps ou pageProps.page para ${region}`);
       }
       console.log(`Posts filtrados para ${region}: ${posts.length}`);
       return posts;
