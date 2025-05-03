@@ -5,7 +5,7 @@ const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
-const REGIONS = ['pt-BR']; // Testar apenas com pt-BR
+const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
 const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -112,7 +112,7 @@ async function fetchNews(region, retries = 3, delay = 1000) {
   }
   const API_BASE_URL = `${BASE_URL}/_next/data/${apiBuildId}`;
   const url = `${API_BASE_URL}/${region}/news.json`;
-  console.log(`Tentando acessar URL: ${url}`); // Log para depuração
+  console.log(`Tentando acessar URL: ${url}`);
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, {
@@ -127,13 +127,16 @@ async function fetchNews(region, retries = 3, delay = 1000) {
             return await fetchNews(region, retries, delay); // Tenta novamente com novo buildId
           }
         }
-        throw new Error(`Erro HTTP: ${response.status}`);
+        console.warn(`Falha ao buscar notícias para ${region}: ${response.status}`);
+        return []; // Retorna vazio para evitar falhas em regiões inválidas
       }
       const data = await response.json();
       console.log(`Dados brutos para ${region}:`, JSON.stringify(data, null, 2));
-      // Ajustar a lógica para lidar com mudanças na estrutura do JSON
+      // Ajustar a lógica para extrair os posts
       const blades = data.pageProps?.blades || [];
-      const articleGrid = blades.find(blade => blade.type === 'articleCardGrid') || {};
+      console.log(`Blades encontrados para ${region}: ${blades.length}`);
+      const articleGrid = blades.find(blade => blade.type?.toLowerCase() === 'articlecardgrid') || {};
+      console.log(`ArticleGrid encontrado para ${region}:`, JSON.stringify(articleGrid, null, 2));
       const posts = articleGrid.items || [];
       console.log(`Posts filtrados para ${region}: ${posts.length}`);
       return posts;
@@ -168,7 +171,7 @@ async function checkForNewNews() {
     const posts = await fetchNews(region);
     console.log(`Processando ${posts.length} posts para ${region}`);
     if (posts.length > 0) {
-      console.log(`Primeiro post: ${JSON.stringify(posts[0], null, 2)}`);
+      console.log(`Primeiro post para ${region}: ${JSON.stringify(posts[0], null, 2)}`);
     } else {
       console.log(`Nenhum post retornado para ${region}`);
     }
@@ -177,7 +180,7 @@ async function checkForNewNews() {
     for (const post of posts) {
       const contentId = post.analytics?.contentId || `${post.title}-${post.publishedAt}`;
       if (!contentId) {
-        console.log(`Post sem identificador: ${post.title}`);
+        console.log(`Post sem identificador em ${region}: ${post.title}`);
         continue;
       }
 
@@ -203,7 +206,7 @@ async function checkForNewNews() {
           state[region].push(contentId);
           hasNewNews = true;
         } catch (error) {
-          console.error(`Erro ao enviar notificação para ${post.title}:`, error.message);
+          console.error(`Erro ao enviar notificação para ${post.title} em ${region}:`, error.message);
         }
       } else {
         console.log(`Notícia já processada em ${region}: ${post.title} (${contentId})`);
