@@ -5,7 +5,7 @@ const { Octokit } = require('@octokit/rest');
 const express = require('express');
 
 // Configurações
-const REGIONS = ["ar-AE", "de-DE", "en-SG", "en-US", "en-gb", "es-ES", "es-MX", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "pl-PL", "pt-BR", "ru-RU", "th-TH", "tr-TR", "vi-VN", "zh-TW"];
+const REGIONS = ['pt-BR']; // Testar apenas com pt-BR
 const BASE_URL = 'https://playvalorant.com';
 const CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutos
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -111,12 +111,15 @@ async function fetchNews(region, retries = 3, delay = 1000) {
     return [];
   }
   const API_BASE_URL = `${BASE_URL}/_next/data/${apiBuildId}`;
+  const url = `${API_BASE_URL}/${region}/news.json`;
+  console.log(`Tentando acessar URL: ${url}`); // Log para depuração
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(`${API_BASE_URL}/${region}/news.json`, {
+      const response = await fetch(url, {
         headers: { 'User-Agent': 'ValorantNewsBot/1.0' },
       });
       if (!response.ok) {
+        console.log(`Resposta da API: ${response.status} ${response.statusText}`);
         if (response.status === 404 && attempt === 1) {
           console.log('Erro 404 detectado, tentando atualizar buildId...');
           await getBuildId();
@@ -128,8 +131,10 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       }
       const data = await response.json();
       console.log(`Dados brutos para ${region}:`, JSON.stringify(data, null, 2));
-      const articleGrid = (data.pageProps.blades || []).find(blade => blade.type === 'articleCardGrid');
-      const posts = articleGrid ? articleGrid.items || [] : [];
+      // Ajustar a lógica para lidar com mudanças na estrutura do JSON
+      const blades = data.pageProps?.blades || [];
+      const articleGrid = blades.find(blade => blade.type === 'articleCardGrid') || {};
+      const posts = articleGrid.items || [];
       console.log(`Posts filtrados para ${region}: ${posts.length}`);
       return posts;
     } catch (error) {
