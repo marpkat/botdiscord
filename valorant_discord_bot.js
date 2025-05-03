@@ -14,9 +14,9 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 // Configurações do GitHub
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-const GITHUB_OWNER = 'marp'; // Substitua por seu usuário
-const GITHUB_REPO = 'valorant-discord-bot'; // Substitua por seu repositório
-const GITHUB_PATH = 'news_state.json'; // Ajuste o caminho se necessário
+const GITHUB_OWNER = 'marpkat';
+const GITHUB_REPO = 'botdiscord';
+const GITHUB_PATH = 'news_state.json';
 
 // Configurações do Express
 const app = express();
