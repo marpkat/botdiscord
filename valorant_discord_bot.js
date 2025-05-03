@@ -16,7 +16,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 const GITHUB_OWNER = 'marpkat';
 const GITHUB_REPO = 'botdiscord';
-const GITHUB_PATH = ' personally identifiable information removed ';
+const GITHUB_PATH = 'news_state.json';
 
 // Configurações do Express
 const app = express();
@@ -42,9 +42,13 @@ const client = new Client({
 // Variável para armazenar o buildId
 let apiBuildId = null;
 
+// Variável para evitar múltiplas execuções simultâneas de checkForNewNews
+let isCheckingNews = false;
+
 // Função para obter o buildId dinamicamente
 async function getBuildId() {
   try {
+    console.log('Obtendo buildId...');
     const response = await fetch(`${BASE_URL}/en-us/news/`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -80,17 +84,19 @@ async function loadState() {
       path: GITHUB_PATH,
     });
     console.log('Estado carregado do GitHub com sucesso');
-    return JSON.parse(Buffer.from(data.content, 'base64').toString());
+    const state = JSON.parse(Buffer.from(data.content, 'base64').toString());
+    console.log('Estado carregado:', JSON.stringify(state, null, 2));
+    return state;
   } catch (error) {
     console.error('Erro ao carregar estado do GitHub:', error.message, error.response?.data);
-    return {};
+    throw new Error('Falha ao carregar o news_state.json. Verifique o GITHUB_TOKEN e o formato do arquivo.');
   }
 }
 
 // Função para salvar o estado no GitHub
 async function saveState(state) {
   try {
-    console.log('Tentando buscar o arquivo news_state.json no GitHub...');
+    console.log('Tentando buscar o arquivo news_state.json no GitHub para atualizar...');
     const { data } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
@@ -109,6 +115,7 @@ async function saveState(state) {
     console.log('Estado salvo no GitHub com sucesso');
   } catch (error) {
     console.error('Erro ao salvar estado no GitHub:', error.message, error.response?.data);
+    throw new Error('Falha ao salvar o news_state.json. Verifique o GITHUB_TOKEN e o acesso ao repositório.');
   }
 }
 
@@ -155,10 +162,8 @@ async function fetchNews(region, retries = 3, delay = 1000) {
       console.log(`Dados recebidos para ${region} com sucesso`);
       console.log(`Chaves em data para ${region}: ${Object.keys(data)}`);
       console.log(`Chaves em pageProps para ${region}: ${Object.keys(data.pageProps || {})}`);
-      // Log para depurar a estrutura de pageProps.page
       if (data.pageProps?.page) {
         console.log(`Chaves em pageProps.page para ${region}: ${Object.keys(data.pageProps.page)}`);
-        // Verificar se blades existe, mas não exibir o conteúdo completo
         if (data.pageProps.page.blades) {
           console.log(`Blades encontrados em pageProps.page para ${region}: ${data.pageProps.page.blades.length}`);
         } else {
@@ -210,76 +215,95 @@ async function fetchNews(region, retries = 3, delay = 1000) {
 
 // Função para verificar e notificar novas notícias
 async function checkForNewNews() {
+  if (isCheckingNews) {
+    console.log('checkForNewNews já está em execução. Aguardando a próxima verificação...');
+    return;
+  }
+
+  isCheckingNews = true;
   console.log(`Verificando notícias às ${new Date().toISOString()}...`);
-  const state = await loadState();
-  let hasNewNews = false;
 
-  const channel = client.channels.cache.get(CHANNEL_ID);
-  if (!channel) {
-    console.error('Canal não encontrado! Verifique o CHANNEL_ID.');
-    return;
-  }
-  if (!channel.permissionsFor(client.user).has('SendMessages')) {
-    console.error('Bot não tem permissão para enviar mensagens no canal!');
-    return;
-  }
+  try {
+    const state = await loadState();
+    let hasNewNews = false;
 
-  for (const region of REGIONS) {
-    const posts = await fetchNews(region);
-    console.log(`Processando ${posts.length} posts para ${region}`);
-    if (posts.length > 0) {
-      console.log(`Primeiro post para ${region}: ${JSON.stringify(posts[0], null, 2)}`);
-    } else {
-      console.log(`Nenhum post retornado para ${region}`);
+    const channel = client.channels.cache.get(CHANNEL_ID);
+    if (!channel) {
+      console.error('Canal não encontrado! Verifique o CHANNEL_ID.');
+      return;
     }
-    if (!state[region]) state[region] = [];
+    if (!channel.permissionsFor(client.user).has('SendMessages')) {
+      console.error('Bot não tem permissão para enviar mensagens no canal!');
+      return;
+    }
 
-    for (const post of posts) {
-      const contentId = post.analytics?.contentId || `${post.title}-${post.publishedAt}`;
-      if (!contentId) {
-        console.log(`Post sem identificador em ${region}: ${post.title}`);
-        continue;
-      }
-
-      if (!state[region].includes(contentId)) {
-        console.log(`Nova notícia detectada em ${region}: ${post.title} (${contentId})`);
-        const embed = new EmbedBuilder()
-          .setTitle(`Nova Notícia em ${region.toUpperCase()}: ${post.title}`)
-          .setDescription(post.description?.body || 'Sem descrição.')
-          .setColor('#FF4655')
-          .setTimestamp(new Date(post.publishedAt))
-          .setThumbnail(post.media?.url || null);
-
-        if (post.action?.payload?.url) {
-          const url = post.action.payload.url.startsWith('http')
-            ? post.action.payload.url
-            : `https://playvalorant.com${post.action.payload.url}`;
-          embed.setURL(url).addFields({ name: 'Link', value: `[Clique aqui](${url})` });
-        }
-
-        try {
-          await channel.send({ embeds: [embed] });
-          console.log(`Notificação enviada para ${post.title} em ${region}`);
-          state[region].push(contentId);
-          hasNewNews = true;
-          console.log(`hasNewNews definido como true após notificação de ${post.title}`);
-        } catch (error) {
-          console.error(`Erro ao enviar notificação para ${post.title} em ${region}:`, error.message);
-        }
+    for (const region of REGIONS) {
+      const posts = await fetchNews(region);
+      console.log(`Processando ${posts.length} posts para ${region}`);
+      if (posts.length > 0) {
+        console.log(`Primeiro post para ${region}: ${JSON.stringify(posts[0], null, 2)}`);
       } else {
-        console.log(`Notícia já processada em ${region}: ${post.title} (${contentId})`);
+        console.log(`Nenhum post retornado para ${region}`);
       }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
+      if (!state[region]) {
+        console.log(`Nenhum estado existente para ${region}, inicializando...`);
+        state[region] = [];
+      }
 
-  console.log(`hasNewNews final: ${hasNewNews}`);
-  if (hasNewNews) {
-    console.log('Novas notícias detectadas, salvando estado...');
-    await saveState(state);
-    console.log('Estado atualizado com novas notícias');
-  } else {
-    console.log('Nenhuma nova notícia detectada.');
+      for (const post of posts) {
+        // Priorizar o contentId do analytics, se disponível
+        let contentId = post.analytics?.contentId;
+        if (!contentId) {
+          console.warn(`Post sem contentId em ${region}: ${post.title}. Usando fallback: ${post.title}-${post.publishedAt}`);
+          contentId = `${post.title}-${post.publishedAt}`;
+        }
+        console.log(`Verificando contentId para ${region}: ${contentId}`);
+        console.log(`Lista atual de contentIds em ${region}: ${state[region]}`);
+
+        if (!state[region].includes(contentId)) {
+          console.log(`Nova notícia detectada em ${region}: ${post.title} (${contentId})`);
+          const embed = new EmbedBuilder()
+            .setTitle(`Nova Notícia em ${region.toUpperCase()}: ${post.title}`)
+            .setDescription(post.description?.body || 'Sem descrição.')
+            .setColor('#FF4655')
+            .setTimestamp(new Date(post.publishedAt))
+            .setThumbnail(post.media?.url || null);
+
+          if (post.action?.payload?.url) {
+            const url = post.action.payload.url.startsWith('http')
+              ? post.action.payload.url
+              : `https://playvalorant.com${post.action.payload.url}`;
+            embed.setURL(url).addFields({ name: 'Link', value: `[Clique aqui](${url})` });
+          }
+
+          try {
+            await channel.send({ embeds: [embed] });
+            console.log(`Notificação enviada para ${post.title} em ${region}`);
+            state[region].push(contentId);
+            hasNewNews = true;
+            console.log(`hasNewNews definido como true após notificação de ${post.title}`);
+          } catch (error) {
+            console.error(`Erro ao enviar notificação para ${post.title} em ${region}:`, error.message);
+          }
+        } else {
+          console.log(`Notícia já processada em ${region}: ${post.title} (${contentId})`);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    console.log(`hasNewNews final: ${hasNewNews}`);
+    if (hasNewNews) {
+      console.log('Novas notícias detectadas, salvando estado...');
+      await saveState(state);
+      console.log('Estado atualizado com novas notícias');
+    } else {
+      console.log('Nenhuma nova notícia detectada.');
+    }
+  } catch (error) {
+    console.error('Erro em checkForNewNews:', error.message);
+  } finally {
+    isCheckingNews = false;
   }
 }
 
@@ -305,13 +329,21 @@ async function sendKeepAliveMessage() {
 setInterval(sendKeepAliveMessage, KEEP_ALIVE_INTERVAL);
 
 // Evento quando o bot está pronto
+let intervalId = null;
 client.once('ready', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
   const channel = client.channels.cache.get(CHANNEL_ID);
-  channel.send('Teste manual de notificação').catch(console.error); // Teste inicial
+  if (channel) {
+    channel.send('Teste manual de notificação').catch(console.error); // Teste inicial
+  } else {
+    console.error('Canal não encontrado ao iniciar o bot!');
+  }
   await getBuildId(); // Busca o buildId ao iniciar
-  checkForNewNews().catch(console.error);
-  setInterval(checkForNewNews, CHECK_INTERVAL);
+  await checkForNewNews(); // Executa a primeira verificação
+  if (!intervalId) {
+    intervalId = setInterval(checkForNewNews, CHECK_INTERVAL);
+    console.log(`Intervalo de verificação configurado: ${CHECK_INTERVAL}ms`);
+  }
   sendKeepAliveMessage().catch(console.error);
 });
 
