@@ -276,7 +276,9 @@
     "ca96ec48-6555-49a7-8cb4-5c3fc28824c2.en-us",
     "1a8380f7-edbe-4646-9096-28dd19dfa51c.en-us",
     "94967c68-34a9-462d-aa34-280001753657.en-us",
-    "e731362e-54fe-4b4f-ac57-48011c98f62b.en-us"
+    "e731362e-54fe-4b4f-ac57-48011c98f62b.en-us",
+    "4de0c336-1204-4c75-ba0c-750bc9922247.en-us",
+    "ad16bfcf-b26b-4b98-82ed-3ce0eec84c40.en-us"
   ],
   "en-gb": [
     "eb65a805-4d15-4e0f-b4cf-98b2d2394628.en-gb",
@@ -1021,7 +1023,9 @@
     "ca96ec48-6555-49a7-8cb4-5c3fc28824c2.ko-kr",
     "00dd6d25-3b54-46ed-a3c4-014255096b30.ko-kr",
     "bd4391f4-0ed4-426c-bbab-aff9a0ea409f.ko-kr",
-    "d2a500da-5b22-4b42-ad6b-43b8d8d19d69.ko-kr"
+    "d2a500da-5b22-4b42-ad6b-43b8d8d19d69.ko-kr",
+    "ad16bfcf-b26b-4b98-82ed-3ce0eec84c40.ko-kr",
+    "4de0c336-1204-4c75-ba0c-750bc9922247.ko-kr"
   ],
   "pl-pl": [
     "eb65a805-4d15-4e0f-b4cf-98b2d2394628.pl-pl",
@@ -1112,7 +1116,9 @@
     "69f3be4b-a988-4e1d-bc72-642f85db7a55.pl-pl",
     "5fe0b5c0-aae6-460b-98e2-422fa58dc298.pl-pl",
     "f0008190-8b9e-479b-85bf-9c6b9b486b37.pl-pl",
-    "ca96ec48-6555-49a7-8cb4-5c3fc28824c2.pl-pl"
+    "ca96ec48-6555-49a7-8cb4-5c3fc28824c2.pl-pl",
+    "ad16bfcf-b26b-4b98-82ed-3ce0eec84c40.pl-pl",
+    "4de0c336-1204-4c75-ba0c-750bc9922247.pl-pl"
   ],
   "pt-br": [
     "e3159274-a9fb-4b6a-9ee1-f77a9dea6aa7.pt-br",
@@ -1643,6 +1649,7 @@
     "f0008190-8b9e-479b-85bf-9c6b9b486b37.zh-tw",
     "a70993e2-cbd5-4594-bb33-a69384d98ad6.zh-tw",
     "ca96ec48-6555-49a7-8cb4-5c3fc28824c2.zh-tw",
-    "1a8380f7-edbe-4646-9096-28dd19dfa51c.zh-tw"
+    "1a8380f7-edbe-4646-9096-28dd19dfa51c.zh-tw",
+    "ad16bfcf-b26b-4b98-82ed-3ce0eec84c40.zh-tw"
   ]
 }
